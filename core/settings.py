@@ -143,3 +143,5 @@ CORS_ALLOW_CREDENTIALS = True  # CRITICAL for HTTP-ONLY cookies!
 #     "http://localhost:5500",
 #     "http://127.0.0.1:5500",
 # ]
+# Gemini API Configuration
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
