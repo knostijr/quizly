@@ -11,6 +11,7 @@ Note: These are helper functions, not views.
 
 import os
 import yt_dlp
+import whisper
 
 
 def download_audio_from_youtube(video_url):
@@ -56,3 +57,39 @@ def download_audio_from_youtube(video_url):
         audio_file = f"media/audio/{info['id']}.mp3"
     
     return audio_file
+
+def transcribe_audio_with_whisper(audio_file_path):
+    """
+    Transcribe audio file to text using Whisper AI.
+    
+    Uses OpenAI Whisper model to convert speech to text.
+    Deletes audio file after transcription to save space.
+    
+    Args:
+        audio_file_path (str): Path to MP3 audio file
+    
+    Returns:
+        str: Transcribed text
+    
+    Raises:
+        Exception: If transcription fails
+    
+    Example:
+        text = transcribe_audio_with_whisper('media/audio/video.mp3')
+        print(text[:50])
+        'Welcome to this video about how to make your own quizApp...'
+    """
+    # Load Whisper model (base = faster, small = better quality)
+    # for testing we are using base
+    # tiny, base, small, medium, large
+    model = whisper.load_model("base")
+    
+    # Transcribe audio
+    result = model.transcribe(audio_file_path)
+    transcript = result["text"]
+    
+    # Delete audio file to save disk space
+    if os.path.exists(audio_file_path):
+        os.remove(audio_file_path)
+    
+    return transcript
