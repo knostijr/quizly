@@ -12,7 +12,12 @@ class QuestionSerializer(serializers.ModelSerializer):
 
     Read-only serializer for questions within quiz.
     Questions are created via quiz creation pipeline.
+    
+    IMPORTANT: Converts question_options from dict to array for frontend compatibility.
+    Frontend expects: ["option A", "option B", "option C", "option D"]
     """
+    
+    question_options = serializers.SerializerMethodField()
 
     class Meta:
         model = Question
@@ -25,6 +30,34 @@ class QuestionSerializer(serializers.ModelSerializer):
             'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def get_question_options(self, obj):
+        """
+        Convert question_options from dict to array.
+        
+        Database stores: {"A": "text1", "B": "text2", "C": "text3", "D": "text4"}
+        Frontend needs: ["text1", "text2", "text3", "text4"]
+        
+        Args:
+            obj: Question instance
+            
+        Returns:
+            list: Array of option values in order [A, B, C, D]
+        """
+        options = obj.question_options
+        
+        if isinstance(options, list):
+            return options
+        
+        if isinstance(options, dict):
+            return [
+                options.get('A', ''),
+                options.get('B', ''),
+                options.get('C', ''),
+                options.get('D', '')
+            ]
+        
+        return ['', '', '', '']
 
 
 class QuizSerializer(serializers.ModelSerializer):
