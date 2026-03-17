@@ -5,12 +5,14 @@ These functions handle:
 - YouTube video download and audio extraction
 - Audio transcription using Whisper AI
 - Quiz generation using Gemini Flash AI
+- Auto-repair of malformed JSON from Gemini
 
 Note: These are helper functions, not views.
 """
 
 import os
 import json
+import re
 import yt_dlp
 import whisper
 from django.conf import settings
@@ -185,6 +187,7 @@ def generate_quiz_with_gemini(transcript, video_title=None):
     
     Uses Gemini Flash to create multiple-choice questions.
     Returns structured quiz data ready for database storage.
+    Includes auto-repair for malformed JSON responses.
     
     Args:
         transcript (str): Video transcript text
@@ -201,9 +204,20 @@ def generate_quiz_with_gemini(transcript, video_title=None):
 
     quiz_text = response.text.strip()
     quiz_text = _remove_markdown_formatting(quiz_text)
-    quiz_data = json.loads(quiz_text.strip())
+    
+    # Try to parse JSON
+    try:
+        quiz_data = json.loads(quiz_text.strip())
+    except json.JSONDecodeError:
+        # If JSON is invalid, try to repair it
+        quiz_text = _repair_malformed_json(quiz_text)
+        quiz_data = json.loads(quiz_text.strip())
 
     _validate_quiz_data(quiz_data)
+    
+    # CRITICAL: Fix malformed question_options after validation
+    quiz_data = _fix_question_options_format(quiz_data)
+    
     return quiz_data
 
 
@@ -224,6 +238,65 @@ def _remove_markdown_formatting(text):
     if text.endswith('```'):
         text = text[:-3]
     return text
+
+
+def _repair_malformed_json(text):
+    """
+    Attempt to repair common Gemini JSON formatting errors.
+    
+    Fixes patterns like: ["A": "text", ...] → {"A": "text", ...}
+    
+    Args:
+        text (str): Potentially malformed JSON text
+    
+    Returns:
+        str: Repaired JSON text
+    """
+    # Fix: ["A": "text"] → {"A": "text"}
+    # Look for question_options with array brackets containing key:value pairs
+    text = re.sub(
+        r'"question_options"\s*:\s*\[([^\]]*?"[A-D]"\s*:\s*"[^"]*"[^\]]*)\]',
+        r'"question_options": {\1}',
+        text
+    )
+    
+    return text
+
+
+def _fix_question_options_format(quiz_data):
+    """
+    Ensure all question_options are proper dicts, not lists.
+    
+    Converts ["A": "text", ...] to {"A": "text", ...}
+    
+    Args:
+        quiz_data (dict): Quiz data from Gemini
+    
+    Returns:
+        dict: Quiz data with fixed question_options
+    """
+    for question in quiz_data['questions']:
+        options = question['question_options']
+        
+        # If it's a list with dict-like structure, convert it
+        if isinstance(options, list):
+            # Try to convert list to dict
+            new_options = {}
+            for item in options:
+                if isinstance(item, dict):
+                    new_options.update(item)
+                elif isinstance(item, str) and ':' in item:
+                    # Parse "A: text" format
+                    parts = item.split(':', 1)
+                    if len(parts) == 2:
+                        key = parts[0].strip().strip('"')
+                        value = parts[1].strip().strip('"')
+                        new_options[key] = value
+            
+            if new_options:
+                question['question_options'] = new_options
+    
+    return quiz_data
 
 
 def _create_quiz_prompt(transcript, video_title=None):
@@ -272,8 +345,9 @@ CORRECT FORMAT EXAMPLE:
   ]
 }}
 
-WRONG FORMAT (DO NOT USE):
-"question_options": ["A": "option1", ...]  ← WRONG! This is invalid JSON!
+WRONG FORMATS (DO NOT USE):
+"question_options": ["A": "option1", "B": "option2"]  ← WRONG!
+"question_options": ["option1", "option2"]  ← WRONG!
 
 REQUIREMENTS:
 - Exactly 10 questions
@@ -377,20 +451,23 @@ def _validate_question_options(question, question_number):
     """
     options = question['question_options']
     
-    if not isinstance(options, dict):
+    # Allow both dict and list (will be fixed later)
+    if not isinstance(options, (dict, list)):
         raise ValueError(
             f"Question {question_number}: question_options must be "
-            f"a dict/object, not {type(options).__name__}. "
-            f"Use {{'A': '...', 'B': '...'}} format, not array!"
+            f"a dict or list, not {type(options).__name__}"
         )
     
+    # If it's a dict, validate keys
+    if isinstance(options, dict):
+        required_options = ['A', 'B', 'C', 'D']
+        for opt in required_options:
+            if opt not in options:
+                raise ValueError(
+                    f"Question {question_number} missing option {opt}")
+    
+    # Validate answer
     required_options = ['A', 'B', 'C', 'D']
-
-    for opt in required_options:
-        if opt not in options:
-            raise ValueError(
-                f"Question {question_number} missing option {opt}")
-
     if question['answer'] not in required_options:
         raise ValueError(
             f"Question {question_number} answer '{question['answer']}' "
