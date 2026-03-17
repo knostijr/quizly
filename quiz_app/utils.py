@@ -20,17 +20,17 @@ import google.generativeai as genai
 def download_audio_from_youtube(video_url, max_duration_minutes=15):
     """
     Download YouTube video and extract audio as MP3.
-
+    
     Uses yt-dlp to download video and ffmpeg to extract audio.
     Audio is saved to media/audio/ directory.
-
+    
     Args:
         video_url (str): YouTube video URL
         max_duration_minutes (int): Maximum allowed video duration in minutes
-
+    
     Returns:
         str: Path to downloaded MP3 file
-
+    
     Raises:
         ValueError: If video exceeds max duration
         Exception: If download fails
@@ -42,11 +42,11 @@ def download_audio_from_youtube(video_url, max_duration_minutes=15):
 def _validate_video_duration(video_url, max_duration_minutes):
     """
     Check if video duration is within allowed limit.
-
+    
     Args:
         video_url (str): YouTube video URL
         max_duration_minutes (int): Maximum allowed duration
-
+    
     Raises:
         ValueError: If video exceeds max duration
     """
@@ -67,13 +67,13 @@ def _validate_video_duration(video_url, max_duration_minutes):
 def _download_and_extract_audio(video_url):
     """
     Download video and extract audio as MP3.
-
+    
     Args:
         video_url (str): YouTube video URL
-
+    
     Returns:
         str: Absolute path to downloaded MP3 file
-
+    
     Raises:
         FileNotFoundError: If audio file not created
     """
@@ -86,7 +86,7 @@ def _download_and_extract_audio(video_url):
 def _get_ytdlp_options():
     """
     Get yt-dlp configuration for audio extraction.
-
+    
     Returns:
         dict: yt-dlp options for MP3 extraction
     """
@@ -107,14 +107,14 @@ def _get_ytdlp_options():
 def _execute_download(video_url, ydl_opts):
     """
     Execute video download and return audio file path.
-
+    
     Args:
         video_url (str): YouTube video URL
         ydl_opts (dict): yt-dlp options
-
+    
     Returns:
         str: Absolute path to MP3 file
-
+    
     Raises:
         FileNotFoundError: If audio file not created
     """
@@ -132,13 +132,13 @@ def _execute_download(video_url, ydl_opts):
 def get_youtube_video_title(video_url):
     """
     Get the title of a YouTube video without downloading.
-
+    
     Uses yt-dlp to extract video metadata.
     Useful for creating quiz titles.
-
+    
     Args:
         video_url (str): YouTube video URL
-
+    
     Returns:
         str: Video title
     """
@@ -154,13 +154,13 @@ def get_youtube_video_title(video_url):
 def transcribe_audio_with_whisper(audio_file_path):
     """
     Transcribe audio file to text using Whisper AI.
-
+    
     Uses OpenAI Whisper model to convert speech to text.
     Deletes audio file after transcription to save space.
-
+    
     Args:
         audio_file_path (str): Path to MP3 audio file
-
+    
     Returns:
         str: Transcribed text
     """
@@ -182,14 +182,14 @@ def transcribe_audio_with_whisper(audio_file_path):
 def generate_quiz_with_gemini(transcript, video_title=None):
     """
     Generate a quiz with 10 questions from transcript using Gemini AI.
-
+    
     Uses Gemini Flash to create multiple-choice questions.
     Returns structured quiz data ready for database storage.
-
+    
     Args:
         transcript (str): Video transcript text
         video_title (str, optional): Video title for quiz title
-
+    
     Returns:
         dict: Quiz data with title, description, and 10 questions
     """
@@ -210,10 +210,10 @@ def generate_quiz_with_gemini(transcript, video_title=None):
 def _remove_markdown_formatting(text):
     """
     Remove markdown code block formatting from text.
-
+    
     Args:
         text (str): Text potentially containing markdown
-
+    
     Returns:
         str: Text without markdown formatting
     """
@@ -229,13 +229,13 @@ def _remove_markdown_formatting(text):
 def _create_quiz_prompt(transcript, video_title=None):
     """
     Create Gemini prompt for quiz generation.
-
+    
     Internal helper function to build the prompt.
-
+    
     Args:
         transcript (str): Video transcript
         video_title (str, optional): Video title
-
+    
     Returns:
         str: Formatted prompt for Gemini
     """
@@ -247,39 +247,42 @@ def _create_quiz_prompt(transcript, video_title=None):
 
 ---
 
-Based on the above transcript, create a quiz with EXACTLY 10 multiple-choice questions.
+TASK: Create a quiz with EXACTLY 10 multiple-choice questions based on this transcript.
 
-REQUIREMENTS:
-- Questions must test understanding of the main concepts
-- Each question has 4 answer options (A, B, C, D)
-- Only ONE correct answer per question
-- Mix of difficulty levels (easy, medium, hard)
-- Clear and unambiguous questions
+CRITICAL JSON FORMAT REQUIREMENTS:
+1. question_options MUST be a JSON OBJECT with curly braces {{}}
+2. question_options MUST have keys "A", "B", "C", "D"
+3. question_options is NOT an array - use {{}}, NOT []
 
-OUTPUT FORMAT (JSON):
+CORRECT FORMAT EXAMPLE:
 {{
-  "title": "Quiz Title (based on content)",
-  "description": "Brief description of quiz topic",
+  "title": "Quiz Title",
+  "description": "Quiz description",
   "questions": [
     {{
-      "question_title": "Question text here?",
+      "question_title": "What is JavaScript?",
       "question_options": {{
-        "A": "First option",
-        "B": "Second option",
-        "C": "Third option",
-        "D": "Fourth option"
+        "A": "Programming language",
+        "B": "Coffee brand",
+        "C": "Web browser",
+        "D": "Operating system"
       }},
       "answer": "A"
     }}
   ]
 }}
 
-IMPORTANT:
-- Return ONLY valid JSON
-- No markdown formatting
-- No explanations outside JSON
+WRONG FORMAT (DO NOT USE):
+"question_options": ["A": "option1", ...]  ← WRONG! This is invalid JSON!
+
+REQUIREMENTS:
 - Exactly 10 questions
-- Answer must be one of: A, B, C, D
+- Each question has 4 options (A, B, C, D)
+- Only ONE correct answer per question
+- question_options MUST be object {{}}, NOT array []
+- answer must be one of: "A", "B", "C", or "D"
+
+Return ONLY valid JSON. No markdown, no explanations, no code blocks.
 """
 
     return prompt
@@ -288,12 +291,12 @@ IMPORTANT:
 def _validate_quiz_data(quiz_data):
     """
     Validate quiz data structure and content.
-
+    
     Internal helper function to ensure quiz data is valid.
-
+    
     Args:
         quiz_data (dict): Quiz data from Gemini
-
+    
     Raises:
         ValueError: If quiz data is invalid
     """
@@ -304,10 +307,10 @@ def _validate_quiz_data(quiz_data):
 def _validate_quiz_structure(quiz_data):
     """
     Validate quiz has required fields and correct question count.
-
+    
     Args:
         quiz_data (dict): Quiz data to validate
-
+    
     Raises:
         ValueError: If structure is invalid
     """
@@ -325,10 +328,10 @@ def _validate_quiz_structure(quiz_data):
 def _validate_all_questions(questions):
     """
     Validate each question has correct format and options.
-
+    
     Args:
         questions (list): List of question dictionaries
-
+    
     Raises:
         ValueError: If any question is invalid
     """
@@ -339,11 +342,11 @@ def _validate_all_questions(questions):
 def _validate_single_question(question, question_number):
     """
     Validate a single question's structure and content.
-
+    
     Args:
         question (dict): Question data
         question_number (int): Question number for error messages
-
+    
     Raises:
         ValueError: If question is invalid
     """
@@ -364,15 +367,23 @@ def _validate_single_question(question, question_number):
 def _validate_question_options(question, question_number):
     """
     Validate question has all required options and valid answer.
-
+    
     Args:
         question (dict): Question data
         question_number (int): Question number for error messages
-
+    
     Raises:
         ValueError: If options or answer are invalid
     """
     options = question['question_options']
+    
+    if not isinstance(options, dict):
+        raise ValueError(
+            f"Question {question_number}: question_options must be "
+            f"a dict/object, not {type(options).__name__}. "
+            f"Use {{'A': '...', 'B': '...'}} format, not array!"
+        )
+    
     required_options = ['A', 'B', 'C', 'D']
 
     for opt in required_options:
